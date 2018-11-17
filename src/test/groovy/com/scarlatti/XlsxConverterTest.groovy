@@ -1,5 +1,7 @@
 package com.scarlatti
 
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.Test
 
@@ -24,10 +26,11 @@ class XlsxConverterTest {
         println json
 
         assert workbook == [
-                "Stuff"   : [
+                "Empty Sheet": [],
+                "Books"   : [
                         [
                                 "Length": "3.0",
-                                "Title" : "what",
+                                "Title" : "cat in the hat",
                                 "Cost"  : "4.56"
                         ], [
                                 "Length": "45.0",
@@ -79,5 +82,46 @@ class XlsxConverterTest {
                         ]
                 ]
         ]
+    }
+
+    @Test
+    void convertTest1XlsxWithJackson() {
+        XlsxWorkbook workbook = new XlsxConverter().convert(Paths.get("src/test/resources/test1.xlsx"))
+
+        String json = new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(workbook)
+        println json
+
+        Test1 test1 = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).convertValue(workbook, Test1)
+
+        assert test1.penguins != null
+        assert test1.penguins[0] != null
+        assert test1.penguins[0].name == "Phil"
+    }
+
+    private static class Test1 {
+        @JsonProperty("Penguins")
+        List<Penguin> penguins
+
+        @JsonProperty("Stuff")
+        List<Book> stuff
+    }
+
+    private static class Penguin {
+        @JsonProperty("Name")
+        String name
+
+        @JsonProperty("Age")
+        String age
+    }
+
+    private static class Book {
+        @JsonProperty("Title")
+        String title
+
+        @JsonProperty("Length")
+        String length
+
+        @JsonProperty("Cost")
+        String cost
     }
 }

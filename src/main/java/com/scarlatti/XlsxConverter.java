@@ -1,10 +1,13 @@
 package com.scarlatti;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.math.BigDecimal;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -16,6 +19,33 @@ import java.util.Map;
  * Saturday, 11/17/2018
  */
 public class XlsxConverter {
+
+    /**
+     *
+     * Convert a spreadsheet to .json as a sibling file with the same name.
+     *
+     * @param args arg0 must be the path of the file to be converted
+     */
+    public static void main(String[] args) throws Exception {
+        if (args.length < 1) {
+            throw new IllegalArgumentException("arg0 must be the path of the file to be converted.");
+        }
+
+        Path xlsxFile = Paths.get(args[0]).toAbsolutePath();
+
+        System.out.println("Converting " + xlsxFile);
+
+        if (!Files.exists(xlsxFile)) {
+            throw new IllegalArgumentException("File " + xlsxFile + "(" + xlsxFile + ") does not exist.");
+        }
+
+        XlsxWorkbook xlsxWorkbook = new XlsxConverter().convert(xlsxFile);
+
+        Path jsonFile = xlsxFile.getParent().resolve(xlsxFile.getFileName().toString() + ".json");
+        new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(jsonFile.toFile(), xlsxWorkbook);
+
+        System.out.println("Successfully converted " + xlsxFile + "(" + xlsxFile + ")");
+    }
 
     public XlsxWorkbook convert(Path file) {
 
@@ -41,7 +71,7 @@ public class XlsxConverter {
     }
 
     private void convertSheetWithHeaders(Sheet sheet, XlsxSheet xlsxSheet) {
-        int firstRowNum = sheet.getFirstRowNum();  // row nums start with 1
+        int firstRowNum = sheet.getFirstRowNum();  // row numbers are 0 based
         int lastRowNum = sheet.getLastRowNum();
 
         if (lastRowNum == 0) {
@@ -51,11 +81,12 @@ public class XlsxConverter {
         for (int i = firstRowNum + 1; i < lastRowNum + 1; i++) {
             Row row = sheet.getRow(i);
 
+            // if a row contains only empty cells it will be null, so skip it.
             if (row == null) {
-                continue;  // if a row contains only empty cells it will be null
+                continue;
             }
 
-            // stuff the record into the working sheet model
+            // add a new record to the sheet we are building
             XlsxRow xlsxRow = new XlsxRow();
             xlsxSheet.add(xlsxRow);
 
@@ -71,10 +102,10 @@ public class XlsxConverter {
     }
 
     private Map<Integer, String> getHeaderNames(Sheet sheet) {
-        Map<Integer, String> headerNames = new HashMap<>();
+        Map<Integer, String> headerNames = new HashMap<>();  // [1: Name, 2: Age], e.g.
 
         Row row = sheet.getRow(0);
-        int firstCellNum = row.getFirstCellNum();
+        int firstCellNum = row.getFirstCellNum();  // cell numbers are 1-based
         int lastCellNum = row.getLastCellNum();
 
         for (int i = firstCellNum; i < lastCellNum; i++) {
@@ -86,16 +117,11 @@ public class XlsxConverter {
     }
 
     private String getStringCellValue(Cell cell) {
-        String stringCellValue = null;
-
         if (cell == null) {
             return "";
         }
 
-        // Get cell type.
-        CellType cellType = cell.getCellType();
-
-        switch (cellType) {
+        switch (cell.getCellType()) {
             case NUMERIC:
                 double numberValue = cell.getNumericCellValue();
 
@@ -110,7 +136,7 @@ public class XlsxConverter {
             case BLANK:
                 return "";
             default:
-                throw new RuntimeException("Not able to handle cell type " + cellType);
+                throw new RuntimeException("Not able to handle cell type " + cell.getCellType());
         }
     }
 }
