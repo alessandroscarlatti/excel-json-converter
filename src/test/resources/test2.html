@@ -65,7 +65,6 @@
         border-spacing: 10px;
     }
 
-
     @keyframes squareWinnerX {
         50% {
             opacity: 0;
@@ -73,6 +72,12 @@
     }
 
     @keyframes squareWinnerO {
+        50% {
+            opacity: 0;
+        }
+    }
+
+    @keyframes winningSquareCat {
         50% {
             opacity: 0;
         }
@@ -88,6 +93,12 @@
         border-radius: 2px;
         box-shadow: 0 0 10px green;
         animation: squareWinnerO 1s linear infinite;
+    }
+
+    .winningSquareCat {
+        border-radius: 2px;
+        box-shadow: 0 0 10px red;
+        animation: winningSquareCat 1s linear infinite;
     }
 
     span.currentPlayerX {
@@ -114,6 +125,12 @@
         }
     }
 
+    @keyframes statusWinnerCat {
+        50% {
+            opacity: 0;
+        }
+    }
+
     .statusWinnerX {
         animation: statusWinnerX 1s linear infinite;
         font-weight: bold;
@@ -127,6 +144,13 @@
         color: green;
         border-color: green;
     }
+
+    .statusWinnerCat {
+        animation: statusWinnerO 1s linear infinite;
+        font-weight: bold;
+        color: red;
+        border-color: red;
+    }
 </style>
 <body>
 <div class="container">
@@ -138,7 +162,8 @@
     const Marker = {
         EMPTY: "EMPTY",
         X: "X",
-        O: "O"
+        O: "O",
+        CAT: "CAT"
     };
 
     const GameStatus = {
@@ -225,10 +250,13 @@
             currentPlayer: {
                 marker: Marker.X
             },
+            startingPlayer: {
+                marker: Marker.X
+            },
             winningPlayer: null,
             winningSolution: null,
             gameStatus: GameStatus.NOT_STARTED,
-            winStatus: WinStatus.PENDING
+            winStatus: WinStatus.PENDING,
         }
     }
 
@@ -261,8 +289,36 @@
                     draft.winStatus = WinStatus.WINNER;
                     draft.winningSolution = action.win.solution;
                 });
+            case "GAME_OVER_CAT":
+                return immer.produce(state, function (draft) {
+                    draft.winningPlayer = {
+                        marker: action.win.player.marker
+                    };
+                    draft.gameStatus = GameStatus.OVER;
+                    draft.winStatus = WinStatus.WINNER;
+                    draft.winningSolution = action.win.solution;
+                    draft.currentPlayer.marker = Marker.CAT;
+                });
             case "RESET":
-                return defaultState();
+                return immer.produce(defaultState(), function (draft) {
+                    if (state.winningPlayer != null) {
+                        if (state.winningPlayer.marker === Marker.CAT) {
+                            switch (state.startingPlayer.marker) {
+                                case Marker.X:
+                                    draft.currentPlayer.marker = Marker.O;
+                                    draft.startingPlayer.marker = Marker.O;
+                                    break;
+                                case Marker.O:
+                                    draft.currentPlayer.marker = Marker.X;
+                                    draft.startingPlayer.marker = Marker.X;
+                                    break;
+                            }
+                        } else {
+                            draft.startingPlayer.marker = state.winningPlayer.marker;
+                            draft.currentPlayer.marker = state.winningPlayer.marker;
+                        }
+                    }
+                });
             default:
                 return state;
         }
@@ -384,12 +440,22 @@
                                         type: "SET_CURRENT_PLAYER",
                                         marker: nextPlayerMarker
                                     });
-                                } else {
+                                }
+                                else {
                                     // game has been won
-                                    dispatch({
-                                        type: "GAME_OVER_WIN",
-                                        win: gameWin
-                                    })
+
+                                    // but who won?  X, O, or CAT?
+                                    if (gameWin.player.marker === Marker.CAT) {
+                                        dispatch({
+                                            type: "GAME_OVER_CAT",
+                                            win: gameWin
+                                        })
+                                    } else {
+                                        dispatch({
+                                            type: "GAME_OVER_WIN",
+                                            win: gameWin
+                                        })
+                                    }
                                 }
                             }
 
@@ -410,6 +476,9 @@
                         case Marker.O:
                             $square.addClass("winningSquareO");
                             break;
+                        case Marker.CAT:
+                            $square.addClass("winningSquareCat");
+                            break;
                     }
                 }
             }
@@ -420,7 +489,7 @@
 
     function $Status(state) {
         let $status = $("<div></div>")
-                .attr("class", "alert status");
+            .attr("class", "alert status");
 
         if (state.gameStatus === GameStatus.NOT_STARTED || state.gameStatus === GameStatus.IN_PROGRESS) {
             $status
@@ -428,13 +497,15 @@
                     $("<span></span>").text("Current Player: ")
                 );
 
-            let $currentPlayerName = $("<span></span>").text(state.currentPlayer.marker);
+            let $currentPlayerName;
 
             switch (state.currentPlayer.marker) {
                 case Marker.X:
+                    $currentPlayerName = $("<span></span>").text(state.currentPlayer.marker);
                     $currentPlayerName.attr("class", "currentPlayerX");
                     break;
                 case Marker.O:
+                    $currentPlayerName = $("<span></span>").text(state.currentPlayer.marker);
                     $currentPlayerName.attr("class", "currentPlayerO");
                     break;
             }
@@ -442,16 +513,22 @@
             $status.append($currentPlayerName);
         } else if (state.gameStatus === GameStatus.OVER) {
             // game is over
-            let $winnerMessage = $("<span></span>").text(state.currentPlayer.marker + " wins!");
+            let $winnerMessage;
 
             switch (state.currentPlayer.marker) {
                 case Marker.X:
+                    $winnerMessage = $("<span></span>").text(state.currentPlayer.marker + " wins!");
                     $winnerMessage.addClass("currentPlayerX");
                     $status.addClass("statusWinnerX");
                     break;
                 case Marker.O:
+                    $winnerMessage = $("<span></span>").text(state.currentPlayer.marker + " wins!");
                     $winnerMessage.attr("currentPlayerO");
                     $status.addClass("statusWinnerO");
+                    break;
+                case Marker.CAT:
+                    $winnerMessage = $("<span></span>").text("Cat wins!");
+                    $status.addClass("statusWinnerCat");
                     break;
             }
 
@@ -531,7 +608,22 @@
                         player: {
                             marker: marker
                         }
-                    }
+                    };
+                }
+            }
+        }
+
+        // if we reach here there is no solution, so check if the cat has the game.
+        let squaresForX = getSquaresByPlayer(store.getState().board.squares, {marker: Marker.X});
+        let squaresForO = getSquaresByPlayer(store.getState().board.squares, {marker: Marker.O});
+
+        if (9 - squaresForX.length - squaresForO.length === 0) {
+            return {
+                solution: {
+                    squares: store.getState().board.squares
+                },
+                player: {
+                    marker: Marker.CAT
                 }
             }
         }
