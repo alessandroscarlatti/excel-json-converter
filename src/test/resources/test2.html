@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<head>
+    <title>Redux basic example</title>
+    <script src="https://unpkg.com/redux@latest/dist/redux.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/immer/dist/immer.umd.js"></script>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/mustard-ui@latest/dist/css/mustard-ui.min.css">
+</head>
+<style>
+    .xSquare {
+        min-width: 50px;
+        min-height: 50px;
+        border: 2px solid brown;
+        text-align: center;
+        line-height: 50px;
+        font-size: 24px;
+        color: brown;
+    }
+
+    .oSquare {
+        min-width: 50px;
+        min-height: 50px;
+        border: 2px solid green;
+        text-align: center;
+        line-height: 50px;
+        font-size: 24px;
+        color: green;
+    }
+
+    .emptySquare {
+        min-width: 50px;
+        min-height: 50px;
+        border: 2px solid gray;
+        line-height: 50px;
+        font-size: 24px;
+    }
+
+    .board {
+        border-collapse: separate;
+        border-spacing: 10px;
+    }
+</style>
+<body>
+<div class="container">
+    <div id="root" class="card">
+
+    </div>
+</div>
+<script>
+
+    const Marker = {
+        EMPTY: "EMPTY",
+        X: "X",
+        O: "O"
+    };
+
+    /**
+     * Get the square at the particular location
+     * @param squareList the squares to select from
+     * @param paramsObj @code{{row: xx, column: xx}}
+     */
+    function getSquareByLoc(squareList, paramsObj) {
+        for (let square of squareList) {
+            console.debug("considering square", square);
+            if (square.row === paramsObj.row && square.column === paramsObj.column) {
+                return square;
+            }
+        }
+        throw new Error("could not find square with parameters " + JSON.stringify(paramsObj));
+    }
+
+    function board(squareList) {
+        return {
+            squares: squareList
+        }
+    }
+
+    function square(paramsObj) {
+        return paramsObj;
+    }
+
+    function root(state, action) {
+        // initial state
+        if (typeof state === 'undefined') {
+            return {
+                board: board([
+                    square({row: 1, column: 1, marker: Marker.EMPTY}),
+                    square({row: 1, column: 2, marker: Marker.EMPTY}),
+                    square({row: 1, column: 3, marker: Marker.EMPTY}),
+                    square({row: 2, column: 1, marker: Marker.EMPTY}),
+                    square({row: 2, column: 2, marker: Marker.EMPTY}),
+                    square({row: 2, column: 3, marker: Marker.EMPTY}),
+                    square({row: 3, column: 1, marker: Marker.EMPTY}),
+                    square({row: 3, column: 2, marker: Marker.EMPTY}),
+                    square({row: 3, column: 3, marker: Marker.EMPTY})
+                ])
+            }
+        }
+
+        switch (action.type) {
+            case "MARK_SQUARE":
+                return immer.produce(state, function (draft) {
+                    let targetSquare = getSquareByLoc(draft.board.squares, {
+                        row: action.row,
+                        column: action.column
+                    });
+
+                    targetSquare.marker = action.marker;
+                });
+            default:
+                return state;
+        }
+    }
+
+    var store = Redux.createStore(
+        root,
+        window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__({
+            name: "store1"
+        })
+    );
+
+    function render() {
+
+        var state = store.getState();
+
+        $("#root")
+            .empty()
+            .append($Board(state.board))
+            // .append(
+            //     $("<div></div>").text(state.toString())
+            // )
+            // .append(
+            //     $("<button></button>")
+            //         .text("Mark")
+            //         .click(function () {
+            //             store.dispatch({
+            //                 type: 'MARK_SQUARE',
+            //                 row: 2,
+            //                 column: 2,
+            //                 marker: 'X'
+            //             })
+            //         })
+            // )
+    }
+
+    function $Board(boardObj) {
+        let $table = $("<table></table>")
+            .attr("class", "board");
+
+        let rows = [1, 2, 3];
+        let columns = [1, 2, 3];
+
+        for (let row of rows) {
+            let $row = $("<tr></tr>");
+            for (let column of columns) {
+                let $square = $Square(getSquareByLoc(boardObj.squares, {row: row, column: column}));
+                $row
+                    .append(
+                        $("<td></td>")
+                            .append($square)
+                    );
+            }
+
+            $table.append($row);
+        }
+
+        return $table;
+    }
+
+    function $Square(squareObj) {
+        let $square = $("<div></div>");
+
+        switch (squareObj.marker) {
+            case Marker.X:
+                $square.text("X");
+                $square.attr("class", "xSquare");
+                break;
+            case Marker.O:
+                $square.text("O");
+                $square.attr("class", "oSquare");
+                break;
+            default:
+                $square.attr("class", "emptySquare");
+                $square.click(() => {
+                    store.dispatch({
+                        type: "MARK_SQUARE",
+                        row: squareObj.row,
+                        column: squareObj.column,
+                        marker: Marker.O
+                    });
+                });
+        }
+
+        return $square;
+    }
+
+    render();
+    store.subscribe(render);
+
+    // now register events
+</script>
+</body>
+</html>

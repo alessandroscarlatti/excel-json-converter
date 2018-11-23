@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<head>
+    <title>Redux basic example</title>
+    <script src="https://unpkg.com/redux@latest/dist/redux.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/immer/dist/immer.umd.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/mustard-ui@latest/dist/css/mustard-ui.min.css">
+</head>
+<style>
+    #value {
+        font-weight: bold;
+    }
+</style>
+<body>
+<div class="container">
+    <div class="card">
+        Clicked: <span id="value">0</span> times
+        <button id="increment" class="button-default-outlined button-round">+</button>
+        <button id="decrement" class="button-default-outlined button-round">-</button>
+        <button id="incrementIfOdd" class="button-default-outlined button-round">Increment if odd</button>
+        <button id="incrementAsync" class="button-default-outlined button-round">Increment async</button>
+        <input id="useColors" type="checkbox" checked name="asdf">Use Colors</input>
+    </div>
+</div>
+<script>
+    function counter(state, action) {
+        if (typeof state === 'undefined') {
+            return {
+                num: 0,
+                useColors: true
+            }
+        }
+
+        switch (action.type) {
+            case 'INCREMENT':
+                return immer.produce(state, function (draftState) {
+                    draftState.num = draftState.num + 1
+                });
+            case 'DECREMENT':
+                return immer.produce(state, function (draftState) {
+                    draftState.num = draftState.num - 1
+                });
+            case 'USE_COLORS':
+                return immer.produce(state, function (draftState) {
+                    draftState.useColors = action.useColors;
+                });
+            default:
+                return state
+        }
+    }
+
+    function counter2(state, action) {
+        return state;
+    }
+
+    var store = Redux.createStore(
+        counter,
+        window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__({
+            name: "store1"
+        })
+    );
+    var valueEl = document.getElementById('value');
+
+
+    var store2 = Redux.createStore(
+        counter2,
+        window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__({
+            name: "store2"
+        })
+    );
+
+    function render() {
+
+        var state = store.getState();
+
+        valueEl.innerHTML = state.num.toString()
+
+        if (state.useColors === true) {
+            valueEl.setAttribute("style", "color: red;");
+        } else {
+            valueEl.setAttribute("style", "color: initial;");
+        }
+
+    }
+
+    render();
+    store.subscribe(render);
+
+    document.getElementById('increment')
+        .addEventListener('click', function () {
+            store.dispatch({type: 'INCREMENT'})
+        });
+
+    document.getElementById('decrement')
+        .addEventListener('click', function () {
+            store.dispatch({type: 'DECREMENT'})
+        });
+
+    document.getElementById('incrementIfOdd')
+        .addEventListener('click', function () {
+            if (store.getState().num % 2 !== 0) {
+                store.dispatch({type: 'INCREMENT'})
+            }
+        });
+
+    document.getElementById('incrementAsync')
+        .addEventListener('click', function () {
+            setTimeout(function () {
+                store.dispatch({type: 'INCREMENT'})
+            }, 1000)
+        });
+
+    document.getElementById('useColors')
+        .addEventListener('change', function (event) {
+            store.dispatch({type: 'USE_COLORS', useColors: event.target.checked});
+        })
+</script>
+</body>
+</html>
