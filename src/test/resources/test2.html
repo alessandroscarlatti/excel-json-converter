@@ -5,40 +5,127 @@
     <script src="https://unpkg.com/redux@latest/dist/redux.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/immer/dist/immer.umd.js"></script>
     <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/redux-thunk/2.3.0/redux-thunk.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/mustard-ui@latest/dist/css/mustard-ui.min.css">
 </head>
 <style>
     .xSquare {
-        min-width: 50px;
-        min-height: 50px;
+        min-width: 100px;
+        min-height: 100px;
         border: 2px solid brown;
         text-align: center;
-        line-height: 50px;
-        font-size: 24px;
+        line-height: 100px;
+        font-size: 48px;
         color: brown;
+        box-sizing: border-box;
     }
 
     .oSquare {
-        min-width: 50px;
-        min-height: 50px;
+        min-width: 100px;
+        min-height: 100px;
         border: 2px solid green;
         text-align: center;
-        line-height: 50px;
-        font-size: 24px;
+        line-height: 100px;
+        font-size: 48px;
         color: green;
+        box-sizing: border-box;
     }
 
     .emptySquare {
-        min-width: 50px;
-        min-height: 50px;
+        min-width: 100px;
+        min-height: 100px;
         border: 2px solid gray;
-        line-height: 50px;
+        line-height: 100px;
         font-size: 24px;
+        box-sizing: border-box;
+    }
+
+    .selectableForX:hover {
+        cursor: pointer;
+        background-color: brown;
+    }
+
+    .selectableForX:active {
+        border-radius: 2px;
+        box-shadow: 0 0 5px brown;
+    }
+
+    .selectableForO:hover {
+        cursor: pointer;
+        background-color: green;
+    }
+
+    .selectableForO:active {
+        border-radius: 2px;
+        box-shadow: 0 0 5px green;
     }
 
     .board {
         border-collapse: separate;
         border-spacing: 10px;
+    }
+
+
+    @keyframes squareWinnerX {
+        50% {
+            opacity: 0;
+        }
+    }
+
+    @keyframes squareWinnerO {
+        50% {
+            opacity: 0;
+        }
+    }
+
+    .winningSquareX {
+        border-radius: 2px;
+        box-shadow: 0 0 10px brown;
+        animation: squareWinnerX 1s linear infinite;
+    }
+
+    .winningSquareO {
+        border-radius: 2px;
+        box-shadow: 0 0 10px green;
+        animation: squareWinnerO 1s linear infinite;
+    }
+
+    span.currentPlayerX {
+        color: brown
+    }
+
+    span.currentPlayerO {
+        color: green
+    }
+
+    .status {
+        border: 1px solid gray;
+    }
+
+    @keyframes statusWinnerX {
+        50% {
+            opacity: 0;
+        }
+    }
+
+    @keyframes statusWinnerO {
+        50% {
+            opacity: 0;
+        }
+    }
+
+    .statusWinnerX {
+        animation: statusWinnerX 1s linear infinite;
+        font-weight: bold;
+        color: brown;
+        border-color: brown;
+    }
+
+    .statusWinnerO {
+        animation: statusWinnerO 1s linear infinite;
+        font-weight: bold;
+        color: green;
+        border-color: green;
     }
 </style>
 <body>
@@ -48,11 +135,22 @@
     </div>
 </div>
 <script>
-
     const Marker = {
         EMPTY: "EMPTY",
         X: "X",
         O: "O"
+    };
+
+    const GameStatus = {
+        NOT_STARTED: "NOT_STARTED",
+        IN_PROGRESS: "IN_PROGRESS",
+        OVER: "OVER"
+    };
+
+    const WinStatus = {
+        PENDING: "PENDING",
+        WINNER: "WINNER",
+        NO_WINNER: "NO_WINNER",
     };
 
     /**
@@ -62,12 +160,43 @@
      */
     function getSquareByLoc(squareList, paramsObj) {
         for (let square of squareList) {
-            console.debug("considering square", square);
+            console.debug("considering square by location", square);
+            if (square.row === paramsObj.row && square.column === paramsObj.column) {
+                return square;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get the square at the particular location
+     * @param squareList the squares to select from
+     * @param paramsObj @code{{row: xx, column: xx}}
+     */
+    function getSquareByLocOrThrow(squareList, paramsObj) {
+        for (let square of squareList) {
+            console.debug("considering square by location", square);
             if (square.row === paramsObj.row && square.column === paramsObj.column) {
                 return square;
             }
         }
         throw new Error("could not find square with parameters " + JSON.stringify(paramsObj));
+    }
+
+    /**
+     * Get the square at the particular location
+     * @param squareList the squares to select from
+     * @param playerObj @code{{marker: xx}}
+     */
+    function getSquaresByPlayer(squareList, playerObj) {
+        let squaresFound = []
+        for (let square of squareList) {
+            console.debug("considering square by player", square);
+            if (square.marker === playerObj.marker) {
+                squaresFound.push(square)
+            }
+        }
+        return squaresFound;
     }
 
     function board(squareList) {
@@ -80,45 +209,84 @@
         return paramsObj;
     }
 
+    function defaultState() {
+        return {
+            board: board([
+                square({row: 1, column: 1, marker: Marker.EMPTY}),
+                square({row: 1, column: 2, marker: Marker.EMPTY}),
+                square({row: 1, column: 3, marker: Marker.EMPTY}),
+                square({row: 2, column: 1, marker: Marker.EMPTY}),
+                square({row: 2, column: 2, marker: Marker.EMPTY}),
+                square({row: 2, column: 3, marker: Marker.EMPTY}),
+                square({row: 3, column: 1, marker: Marker.EMPTY}),
+                square({row: 3, column: 2, marker: Marker.EMPTY}),
+                square({row: 3, column: 3, marker: Marker.EMPTY})
+            ]),
+            currentPlayer: {
+                marker: Marker.X
+            },
+            winningPlayer: null,
+            winningSolution: null,
+            gameStatus: GameStatus.NOT_STARTED,
+            winStatus: WinStatus.PENDING
+        }
+    }
+
     function root(state, action) {
         // initial state
         if (typeof state === 'undefined') {
-            return {
-                board: board([
-                    square({row: 1, column: 1, marker: Marker.EMPTY}),
-                    square({row: 1, column: 2, marker: Marker.EMPTY}),
-                    square({row: 1, column: 3, marker: Marker.EMPTY}),
-                    square({row: 2, column: 1, marker: Marker.EMPTY}),
-                    square({row: 2, column: 2, marker: Marker.EMPTY}),
-                    square({row: 2, column: 3, marker: Marker.EMPTY}),
-                    square({row: 3, column: 1, marker: Marker.EMPTY}),
-                    square({row: 3, column: 2, marker: Marker.EMPTY}),
-                    square({row: 3, column: 3, marker: Marker.EMPTY})
-                ])
-            }
+            return defaultState();
         }
 
         switch (action.type) {
             case "MARK_SQUARE":
                 return immer.produce(state, function (draft) {
-                    let targetSquare = getSquareByLoc(draft.board.squares, {
+                    let targetSquare = getSquareByLocOrThrow(draft.board.squares, {
                         row: action.row,
                         column: action.column
                     });
 
                     targetSquare.marker = action.marker;
                 });
+            case "SET_CURRENT_PLAYER":
+                return immer.produce(state, function (draft) {
+                    draft.currentPlayer.marker = action.marker;
+                });
+            case "GAME_OVER_WIN":
+                return immer.produce(state, function (draft) {
+                    draft.winningPlayer = {
+                        marker: action.win.player.marker
+                    };
+                    draft.gameStatus = GameStatus.OVER;
+                    draft.winStatus = WinStatus.WINNER;
+                    draft.winningSolution = action.win.solution;
+                });
+            case "RESET":
+                return defaultState();
             default:
                 return state;
         }
     }
 
+    const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || Redux.compose;
+    // const devTools = window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__({
+    //     name: "store1"
+    // });
+
     var store = Redux.createStore(
         root,
-        window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__({
-            name: "store1"
-        })
+        composeEnhancers(Redux.applyMiddleware(ReduxThunk.default)),
     );
+
+    function ActionsFactory(store) {
+        return {
+            addMarkerForCurrentPlayer: function (actionObj) {
+                actionObj.marker = store.getState().currentPlayer.marker
+            }
+        };
+    }
+
+    const actionsFactory = ActionsFactory(store);
 
     function render() {
 
@@ -126,25 +294,12 @@
 
         $("#root")
             .empty()
-            .append($Board(state.board))
-            // .append(
-            //     $("<div></div>").text(state.toString())
-            // )
-            // .append(
-            //     $("<button></button>")
-            //         .text("Mark")
-            //         .click(function () {
-            //             store.dispatch({
-            //                 type: 'MARK_SQUARE',
-            //                 row: 2,
-            //                 column: 2,
-            //                 marker: 'X'
-            //             })
-            //         })
-            // )
+            .append($Board(state.board, state, actionsFactory))
+            .append($Status(state))
+            .append($Toolbar())
     }
 
-    function $Board(boardObj) {
+    function $Board(boardObj, state, actionsFactory) {
         let $table = $("<table></table>")
             .attr("class", "board");
 
@@ -154,7 +309,10 @@
         for (let row of rows) {
             let $row = $("<tr></tr>");
             for (let column of columns) {
-                let $square = $Square(getSquareByLoc(boardObj.squares, {row: row, column: column}));
+                let $square = $Square(getSquareByLocOrThrow(boardObj.squares, {
+                    row: row,
+                    column: column
+                }), state, actionsFactory);
                 $row
                     .append(
                         $("<td></td>")
@@ -168,31 +326,215 @@
         return $table;
     }
 
-    function $Square(squareObj) {
+    function $Square(squareObj, state, actionsFactory) {
         let $square = $("<div></div>");
 
         switch (squareObj.marker) {
             case Marker.X:
                 $square.text("X");
-                $square.attr("class", "xSquare");
+                $square.addClass("xSquare");
                 break;
             case Marker.O:
                 $square.text("O");
-                $square.attr("class", "oSquare");
+                $square.addClass("oSquare");
                 break;
             default:
-                $square.attr("class", "emptySquare");
-                $square.click(() => {
-                    store.dispatch({
-                        type: "MARK_SQUARE",
-                        row: squareObj.row,
-                        column: squareObj.column,
-                        marker: Marker.O
+                $square.addClass("emptySquare");
+                $square.html("&nbsp");
+
+                switch (state.currentPlayer.marker) {
+                    case Marker.X:
+                        $square.addClass("selectableForX");
+                        break;
+                    case Marker.O:
+                        $square.addClass("selectableForO");
+                        break;
+                }
+
+                if (state.gameStatus === GameStatus.IN_PROGRESS || state.gameStatus === GameStatus.NOT_STARTED) {
+                    $square.click(() => {
+                        let action = {
+                            type: "MARK_SQUARE",
+                            row: squareObj.row,
+                            column: squareObj.column,
+                            marker: Marker.O
+                        };
+                        actionsFactory.addMarkerForCurrentPlayer(action);
+                        store.dispatch(action);
+
+                        store.dispatch(function (dispatch, getState) {
+                            let currentPlayer = getState().currentPlayer;
+
+                            let nextPlayerMarker;
+
+                            switch (currentPlayer.marker) {
+                                case Marker.X:
+                                    nextPlayerMarker = Marker.O;
+                                    break;
+                                case Marker.O:
+                                    nextPlayerMarker = Marker.X;
+                                    break;
+                            }
+
+                            function evaluateGame() {
+                                let gameWin = findGameWin();
+                                if (gameWin == null) {
+                                    // game is not yet over
+                                    dispatch({
+                                        type: "SET_CURRENT_PLAYER",
+                                        marker: nextPlayerMarker
+                                    });
+                                } else {
+                                    // game has been won
+                                    dispatch({
+                                        type: "GAME_OVER_WIN",
+                                        win: gameWin
+                                    })
+                                }
+                            }
+
+                            setTimeout(evaluateGame, 0);
+                        })
                     });
-                });
+                }
+        }
+
+        if (state.winStatus === WinStatus.WINNER) {
+            for (let square of state.winningSolution.squares) {
+                if (squareObj.row === square.row && squareObj.column === square.column) {
+
+                    switch (state.currentPlayer.marker) {
+                        case Marker.X:
+                            $square.addClass("winningSquareX");
+                            break;
+                        case Marker.O:
+                            $square.addClass("winningSquareO");
+                            break;
+                    }
+                }
+            }
         }
 
         return $square;
+    }
+
+    function $Status(state) {
+        let $status = $("<div></div>")
+                .attr("class", "alert status");
+
+        if (state.gameStatus === GameStatus.NOT_STARTED || state.gameStatus === GameStatus.IN_PROGRESS) {
+            $status
+                .append(
+                    $("<span></span>").text("Current Player: ")
+                );
+
+            let $currentPlayerName = $("<span></span>").text(state.currentPlayer.marker);
+
+            switch (state.currentPlayer.marker) {
+                case Marker.X:
+                    $currentPlayerName.attr("class", "currentPlayerX");
+                    break;
+                case Marker.O:
+                    $currentPlayerName.attr("class", "currentPlayerO");
+                    break;
+            }
+
+            $status.append($currentPlayerName);
+        } else if (state.gameStatus === GameStatus.OVER) {
+            // game is over
+            let $winnerMessage = $("<span></span>").text(state.currentPlayer.marker + " wins!");
+
+            switch (state.currentPlayer.marker) {
+                case Marker.X:
+                    $winnerMessage.addClass("currentPlayerX");
+                    $status.addClass("statusWinnerX");
+                    break;
+                case Marker.O:
+                    $winnerMessage.attr("currentPlayerO");
+                    $status.addClass("statusWinnerO");
+                    break;
+            }
+
+            $status.append($winnerMessage);
+        } else {
+            throw new Error("unknown game status " + state.gameStatus)
+        }
+
+        return $status;
+    }
+
+    function $Toolbar() {
+        let $toolbar = $("<div></div>");
+        $toolbar
+            .append(
+                $("<button></button>")
+                    .click(() => {
+                        store.dispatch({
+                            type: "RESET"
+                        })
+                    })
+                    .text("Reset")
+            );
+        return $toolbar;
+    }
+
+    /**
+     * Find a winner.
+     * @return player who won, or null, if no winner, e.g. @code{solution: {squares: [...]}, player: {marker: xx}}
+     */
+    function findGameWin() {
+        const solutions = [
+            // horizontal lines
+            [{row: 1, column: 1}, {row: 1, column: 2}, {row: 1, column: 3}],
+            [{row: 2, column: 1}, {row: 2, column: 2}, {row: 2, column: 3}],
+            [{row: 3, column: 1}, {row: 3, column: 2}, {row: 3, column: 3}],
+            // vertical lines
+            [{row: 1, column: 1}, {row: 2, column: 1}, {row: 3, column: 1}],
+            [{row: 1, column: 2}, {row: 2, column: 2}, {row: 3, column: 2}],
+            [{row: 1, column: 3}, {row: 2, column: 3}, {row: 3, column: 3}],
+            // diagonals (NW -> SE, NE -> SW)
+            [{row: 1, column: 1}, {row: 2, column: 2}, {row: 3, column: 3}],
+            [{row: 1, column: 3}, {row: 2, column: 2}, {row: 3, column: 1}],
+
+        ];
+
+        // first look for X, then for O
+
+        let playersMarkers = [Marker.X, Marker.O];
+
+        for (let marker of playersMarkers) {
+            // find all squares for a mark
+            let squaresForPlayer = getSquaresByPlayer(store.getState().board.squares, {marker: marker});
+
+            for (let solutionSquares of solutions) {
+
+                let foundSolution = true;
+
+                // now try all the squares for this solution
+                for (let solutionSquare of solutionSquares) {
+                    let potentialSquare = getSquareByLoc(squaresForPlayer, {
+                        row: solutionSquare.row,
+                        column: solutionSquare.column
+                    });
+
+                    if (potentialSquare == null) {
+                        // the player does not have a square for this solution
+                        foundSolution = false;
+                    }
+                }
+
+                if (foundSolution === true) {
+                    return {
+                        solution: {
+                            squares: solutionSquares
+                        },
+                        player: {
+                            marker: marker
+                        }
+                    }
+                }
+            }
+        }
     }
 
     render();
