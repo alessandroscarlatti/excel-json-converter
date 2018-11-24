@@ -167,6 +167,16 @@
     .statsCat {
         color: red;
     }
+
+    @keyframes resetStats {
+        50% {
+            opacity: 0;
+        }
+    }
+
+    .resetStats {
+        animation: resetStats 1s linear normal;
+    }
 </style>
 <body>
 <div class="container">
@@ -279,8 +289,9 @@
                     // {
                     //     player: {marker: Marker.X}
                     // }
-                ]
-            }
+                ],
+                wereReset: true
+            },
         }
     }
 
@@ -299,6 +310,7 @@
                     });
 
                     targetSquare.marker = action.marker;
+                    draft.stats.wereReset = false;
                 });
             case "SET_CURRENT_PLAYER":
                 return immer.produce(state, function (draft) {
@@ -316,7 +328,8 @@
                         player: {
                             marker: action.win.player.marker
                         }
-                    })
+                    });
+                    draft.stats.wereReset = true;
                 });
             case "GAME_OVER_CAT":
                 return immer.produce(state, function (draft) {
@@ -332,6 +345,7 @@
                             marker: action.win.player.marker
                         }
                     })
+                    draft.stats.wereReset = true;
                 });
             case "NEW_GAME":
                 return immer.produce(defaultState(), function (draft) {
@@ -354,6 +368,7 @@
                     }
 
                     draft.stats = immer.produce(state.stats, () => {});
+                    draft.stats.wereReset = false;
                 });
             case "RESET":
                 return defaultState();
@@ -586,6 +601,10 @@
                 $("<p></p>")
                     .text("Games Won:")
             );
+
+        if (stats.wereReset === true) {
+            $stats.addClass("resetStats");
+        }
 
         let $table = $("<table></table>");
 
