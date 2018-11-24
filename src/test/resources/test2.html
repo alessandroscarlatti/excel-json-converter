@@ -113,6 +113,10 @@
         border: 1px solid gray;
     }
 
+    .stats {
+        border: 1px solid gray;
+    }
+
     @keyframes statusWinnerX {
         50% {
             opacity: 0;
@@ -150,6 +154,18 @@
         font-weight: bold;
         color: red;
         border-color: red;
+    }
+
+    .statsX {
+        color: brown;
+    }
+
+    .statsO {
+        color: green;
+    }
+
+    .statsCat {
+        color: red;
     }
 </style>
 <body>
@@ -257,6 +273,14 @@
             winningSolution: null,
             gameStatus: GameStatus.NOT_STARTED,
             winStatus: WinStatus.PENDING,
+            stats: {
+                gamesPlayed: 0,
+                wins: [
+                    // {
+                    //     player: {marker: Marker.X}
+                    // }
+                ]
+            }
         }
     }
 
@@ -288,6 +312,11 @@
                     draft.gameStatus = GameStatus.OVER;
                     draft.winStatus = WinStatus.WINNER;
                     draft.winningSolution = action.win.solution;
+                    draft.stats.wins.push({
+                        player: {
+                            marker: action.win.player.marker
+                        }
+                    })
                 });
             case "GAME_OVER_CAT":
                 return immer.produce(state, function (draft) {
@@ -298,8 +327,13 @@
                     draft.winStatus = WinStatus.WINNER;
                     draft.winningSolution = action.win.solution;
                     draft.currentPlayer.marker = Marker.CAT;
+                    draft.stats.wins.push({
+                        player: {
+                            marker: action.win.player.marker
+                        }
+                    })
                 });
-            case "RESET":
+            case "NEW_GAME":
                 return immer.produce(defaultState(), function (draft) {
                     if (state.winningPlayer != null) {
                         if (state.winningPlayer.marker === Marker.CAT) {
@@ -318,7 +352,11 @@
                             draft.currentPlayer.marker = state.winningPlayer.marker;
                         }
                     }
+
+                    draft.stats = immer.produce(state.stats, () => {});
                 });
+            case "RESET":
+                return defaultState();
             default:
                 return state;
         }
@@ -353,6 +391,7 @@
             .append($Board(state.board, state, actionsFactory))
             .append($Status(state))
             .append($Toolbar())
+            .append($Stats(state.stats))
     }
 
     function $Board(boardObj, state, actionsFactory) {
@@ -540,9 +579,74 @@
         return $status;
     }
 
+    function $Stats(stats) {
+        let $stats = $("<div></div>")
+            .addClass("alert stats")
+            .append(
+                $("<p></p>")
+                    .text("Games Won:")
+            );
+
+        let $table = $("<table></table>");
+
+        $table.append(
+            $("<tr></tr>")
+                .append(
+                    $("<th></th>")
+                        .addClass("statsX")
+                        .text("X")
+                )
+                .append(
+                    $("<th></th>")
+                        .addClass("statsO")
+                        .text("O")
+                )
+                .append(
+                    $("<th></th>")
+                        .addClass("statsCat")
+                        .text("Cat")
+                )
+        );
+
+        $table.append(
+            $("<tr></tr>")
+            // build X stats
+                .append(
+                    $("<td></td>")
+                        .addClass("statsX")
+                        .text(calcNumberOfWinsByPlayer(stats.wins, {marker: Marker.X}))
+                )
+                // build O stats
+                .append(
+                    $("<td></td>")
+                        .addClass("statsO")
+                        .text(calcNumberOfWinsByPlayer(stats.wins, {marker: Marker.O}))
+                )
+                // build Cat stats
+                .append(
+                    $("<td></td>")
+                        .addClass("statsCat")
+                        .text(calcNumberOfWinsByPlayer(stats.wins, {marker: Marker.CAT}))
+                )
+        );
+
+        $stats.append($table);
+
+        return $stats;
+    }
+
     function $Toolbar() {
         let $toolbar = $("<div></div>");
         $toolbar
+            .append(
+                $("<button></button>")
+                    .click(() => {
+                        store.dispatch({
+                            type: "NEW_GAME"
+                        })
+                    })
+                    .text("New Game")
+            )
             .append(
                 $("<button></button>")
                     .click(() => {
@@ -553,6 +657,17 @@
                     .text("Reset")
             );
         return $toolbar;
+    }
+
+    function calcNumberOfWinsByPlayer(winsList, player) {
+        let winCount = 0;
+        for (let win of winsList) {
+            if (win.player.marker === player.marker) {
+                winCount++;
+            }
+        }
+
+        return winCount;
     }
 
     /**
